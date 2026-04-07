@@ -1,0 +1,13 @@
+export const SOCKET_EVENTS = {
+    CONNECT: 'connect',
+    DISCONNECT: 'disconnect',
+    START_SEARCH: 'START_SEARCH',
+    MATCH_FOUND: 'MATCH_FOUND',
+    SEND_MESSAGE: 'SEND_MESSAGE',
+    RECEIVE_MESSAGE: 'RECEIVE_MESSAGE',
+    PARTNER_DISCONNECTED: 'PARTNER_DISCONNECTED'
+};
+
+export const REDIS_KEYS = {
+    QUEUE: 'vibe_queue'
+};
