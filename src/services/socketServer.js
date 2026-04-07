@@ -31,7 +31,11 @@ export const setupSocketEvents = (io) => {
           partnerSocket.data.roomId = roomId;
 
           // Broadcast to the room that a match occurred
-          io.to(roomId).emit('MATCH_FOUND', { status: 'success', message: 'You are now chatting with a stranger!' });
+          io.to(roomId).emit('MATCH_FOUND', {
+            status: 'success',
+            message: 'You are now chatting with a stranger!',
+            roomId,
+          });
         } else {
           // Partner dropped out while in queue. Push the current user into the queue instead.
           await redisClient.lPush('waiting_queue', socket.id);
@@ -47,10 +51,10 @@ export const setupSocketEvents = (io) => {
     socket.on('SEND_MESSAGE', (messageData) => {
       const roomId = socket.data.roomId;
       if (roomId) {
-        // socket.to() sends to everyone in the room EXCEPT the sender
-        socket.to(roomId).emit('RECEIVE_MESSAGE', { 
-          text: messageData.text, 
-          timestamp: new Date().toISOString() 
+        socket.to(roomId).emit('RECEIVE_MESSAGE', {
+          message: messageData.message,
+          sender: messageData.sender || socket.id,
+          timestamp: new Date().toLocaleTimeString(),
         });
       }
     });

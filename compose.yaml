@@ -3,12 +3,21 @@ services:
     build: .
     environment:
       - PORT=3000
-      # Change 'localhost' to 'redis-1' (matching the service name below)
-      - REDIS_URL=redis://redis-1:6379 
+      - REDIS_URL=redis://redis-1:6379
+      - CORS_ORIGIN=*
     ports:
       - "3000:3000"
     depends_on:
       - redis-1
+
+  client:
+    build: ./client
+    environment:
+      - NEXT_PUBLIC_SOCKET_URL=http://server:3000
+    ports:
+      - "3001:3000"
+    depends_on:
+      - server
 
   redis-1: 
     image: redis/redis-stack-server:latest
