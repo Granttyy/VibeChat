@@ -34,21 +34,37 @@ export const useSocket = () => {
 
   // Initialize socket connection on mount
   useEffect(() => {
+    console.log('Client: Initializing socket connection...');
     socketRef.current = getSocket();
 
     socketRef.current.on('connect', () => {
+      console.log('Client: Socket connected with ID:', socketRef.current.id);
       setUserId(socketRef.current.id);
     });
 
+    socketRef.current.on('disconnect', () => {
+      console.log('Client: Socket disconnected');
+      setState('IDLE');
+      setMessages([]);
+      setRoomId(null);
+    });
+
     // Handle MATCH_FOUND event
-    socketRef.current.on(SOCKET_EVENTS.MATCH_FOUND, (data) => {
+    socketRef.current.on('MATCH_FOUND', (data) => {
+      console.log('Client: MATCH_FOUND received:', data);
       setRoomId(data.roomId);
       setMessages([]);
       setState('CHATTING');
     });
 
+    // Handle WAITING event
+    socketRef.current.on('WAITING', (data) => {
+      console.log('Client: WAITING received:', data);
+    });
+
     // Handle RECEIVE_MESSAGE event
     socketRef.current.on(SOCKET_EVENTS.RECEIVE_MESSAGE, (data) => {
+      console.log('Client: RECEIVE_MESSAGE received:', data);
       setMessages((prev) => [
         ...prev,
         {
@@ -62,6 +78,7 @@ export const useSocket = () => {
 
     // Handle partner disconnect
     socketRef.current.on(SOCKET_EVENTS.PARTNER_LEFT, () => {
+      console.log('Client: PARTNER_LEFT received');
       setState('IDLE');
       setMessages([]);
       setRoomId(null);
@@ -80,9 +97,13 @@ export const useSocket = () => {
   }, []);
 
   const startSearch = useCallback(() => {
+    console.log('Client: startSearch called');
     if (socketRef.current) {
+      console.log('Client: Socket exists, emitting START_SEARCH');
       setState('SEARCHING');
       socketRef.current.emit(SOCKET_EVENTS.START_SEARCH);
+    } else {
+      console.log('Client: No socket connection available');
     }
   }, []);
 
