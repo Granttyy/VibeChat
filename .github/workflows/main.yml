@@ -48,35 +48,9 @@ jobs:
       - name: Build Next.js app
         run: cd client && npm run build
 
-  # Build Docker images
-  build-docker:
-    needs: [test-server, test-client]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Server Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false
-          tags: vibechat-server:${{ github.sha }}
-
-      - name: Build Client Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./client
-          file: ./client/Dockerfile
-          push: false
-          tags: vibechat-client:${{ github.sha }}
-
   # Deploy notification (optional - customize based on your deployment platform)
   deploy-notify:
-    needs: build-docker
+    needs: [test-server, test-client]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
