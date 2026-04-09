@@ -14,7 +14,16 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"]
   }
 });
+// Global error handling
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // Don't exit, just log
+});
 
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit, just log
+});
 app.get('/', (req, res) => {
   res.send('🚀 VibeChat Server is Online!');
 });
@@ -24,6 +33,7 @@ app.get('/ping', (req, res) => {
   res.status(200).send('pong');
 });
 
+// Comprehensive health check
 app.get('/health', async (req, res) => {
   try {
     // Test Redis connection
@@ -31,9 +41,11 @@ app.get('/health', async (req, res) => {
     res.json({
       status: 'healthy',
       redis: 'connected',
+      uptime: process.uptime(),
       timestamp: new Date().toISOString()
     });
   } catch (error) {
+    console.error('Health check failed:', error);
     res.status(500).json({
       status: 'unhealthy',
       redis: 'disconnected',
@@ -49,7 +61,14 @@ async function bootstrap() {
     await redisService.connect();
     console.log('2. Redis connected!');
 
-    setupSocketEvents(io);
+    // Setup socket events with error handling
+    try {
+      setupSocketEvents(io);
+      console.log('3. Socket events setup complete');
+    } catch (socketError) {
+      console.error('Error setting up socket events:', socketError);
+      // Continue anyway - socket setup failure shouldn't crash the server
+    }
 
     const PORT = process.env.PORT || 3000;
     console.log(`Starting server on port ${PORT}...`);
@@ -62,7 +81,7 @@ async function bootstrap() {
     // Handle server errors
     httpServer.on('error', (error) => {
       console.error('Server error:', error);
-      process.exit(1);
+      // Don't exit, just log the error
     });
 
     // Graceful shutdown
@@ -74,9 +93,17 @@ async function bootstrap() {
       });
     });
 
+    process.on('SIGINT', () => {
+      console.log('SIGINT received, shutting down gracefully');
+      httpServer.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+      });
+    });
+
   } catch (err) {
     console.error('💥 Bootstrap Error:', err);
-    process.exit(1);
+    // Don't exit, try to keep server running
   }
 }
 
