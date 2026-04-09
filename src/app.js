@@ -10,9 +10,9 @@ const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: config.CORS_ORIGIN,
-    methods: ['GET', 'POST'],
-  },
+    origin: process.env.CORS_ORIGIN,
+    methods: ["GET", "POST"]
+  }
 });
 
 app.get('/', (req, res) => {

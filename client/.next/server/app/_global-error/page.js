@@ -1,0 +1,11 @@
+var R=require("../../chunks/ssr/[turbopack]_runtime.js")("server/app/_global-error/page.js")
+R.c("server/chunks/ssr/0.95_0xpr3ma._.js")
+R.c("server/chunks/ssr/0.95_next_dist_esm_build_templates_app-page_0tku982.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0v5wcn5._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__04~-i2t._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__014hzxi._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0pwo6pg._.js")
+R.c("server/chunks/ssr/0.95_next_dist_client_components_builtin_global-error_087rjlt.js")
+R.c("server/chunks/ssr/04rc_VibeChat_client__next-internal_server_app__global-error_page_actions_02zkpkn.js")
+R.m(84663)
+module.exports=R.m(84663).exports

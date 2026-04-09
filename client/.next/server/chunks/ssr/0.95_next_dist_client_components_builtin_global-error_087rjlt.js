@@ -1,0 +1,3 @@
+module.exports=[85294,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(35580);a.n(d("[project]/OneDrive/Documents/VibeChat/client/node_modules/next/dist/client/components/builtin/global-error.js <module evaluation>"))},76695,(a,b,c)=>{let{createClientModuleProxy:d}=a.r(35580);a.n(d("[project]/OneDrive/Documents/VibeChat/client/node_modules/next/dist/client/components/builtin/global-error.js"))},62788,a=>{"use strict";a.i(85294);var b=a.i(76695);a.n(b)},52670,a=>{a.n(a.i(62788))}];
+
+//# sourceMappingURL=0.95_next_dist_client_components_builtin_global-error_087rjlt.js.map
