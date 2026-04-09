@@ -1,5 +1,8 @@
 name: CI/CD Pipeline
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   push:
     branches: [main, develop]
@@ -11,10 +14,10 @@ jobs:
   test-server:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.1.0
         with:
           node-version: '24'
           cache: 'npm'
@@ -33,17 +36,17 @@ jobs:
   test-client:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.1.0
         with:
           node-version: '24'
           cache: 'npm'
           cache-dependency-path: 'client/package-lock.json'
 
       - name: Install dependencies
-        run: cd client && npm ci
+        run: cd client && npm ci --prefer-offline --no-audit
 
       - name: Run linter
         run: cd client && npm run lint --if-present
