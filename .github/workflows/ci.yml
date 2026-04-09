@@ -1,0 +1,94 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # Test Server
+  test-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint --if-present
+
+      - name: Check for syntax errors
+        run: node -c src/app.js
+
+  # Test Client
+  test-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'client/package-lock.json'
+
+      - name: Install dependencies
+        run: cd client && npm ci
+
+      - name: Run linter
+        run: cd client && npm run lint --if-present
+
+      - name: Build Next.js app
+        run: cd client && npm run build
+
+  # Build Docker images
+  build-docker:
+    needs: [test-server, test-client]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Server Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: vibechat-server:${{ github.sha }}
+
+      - name: Build Client Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./client
+          file: ./client/Dockerfile
+          push: false
+          tags: vibechat-client:${{ github.sha }}
+
+  # Deploy notification (optional - customize based on your deployment platform)
+  deploy-notify:
+    needs: build-docker
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Notify deployment ready
+        run: echo "✅ Build successful! Ready for deployment to Render"
+
+      # Uncomment below if you want to trigger Render deployment
+      # - name: Trigger Render deployment
+      #   env:
+      #     RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+      #   run: |
+      #     curl $RENDER_DEPLOY_HOOK
