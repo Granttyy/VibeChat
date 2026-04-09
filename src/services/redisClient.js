@@ -31,17 +31,22 @@ class RedisService {
 
   // Push user to the waiting list
   async joinQueue(userId) {
-    return await this.client.lPush('vibe_queue', userId);
+    return await this.client.lPush('waiting_queue', userId);
   }
 
   // Pull a random partner
   async popPartner() {
-    return await this.client.rPop('vibe_queue');
+    return await this.client.rPop('waiting_queue');
   }
 
   // Remove user if they cancel/disconnect while waiting
   async removeFromQueue(userId) {
-    return await this.client.lRem('vibe_queue', 0, userId);
+    return await this.client.lRem('waiting_queue', 0, userId);
+  }
+
+  // Ping Redis to check connection
+  async ping() {
+    return await this.client.ping();
   }
 
   // Graceful shutdown

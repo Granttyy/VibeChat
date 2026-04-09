@@ -1,10 +1,25 @@
 import { createClient } from 'redis';
 
 // Initialize the Redis Client
-const redisClient = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
+const redisClient = createClient({
+  url: process.env.REDIS_URL || 'redis://localhost:6379',
+  socket: {
+    connectTimeout: 60000,
+    lazyConnect: true,
+  }
+});
 
 redisClient.on('error', (err) => console.error('Redis connection error:', err));
-await redisClient.connect(); // Requires "type": "module" in package.json
+redisClient.on('connect', () => console.log('Redis connected successfully'));
+redisClient.on('ready', () => console.log('Redis client ready'));
+
+// Connect to Redis
+try {
+  await redisClient.connect();
+  console.log('Redis client initialized');
+} catch (error) {
+  console.error('Failed to connect to Redis:', error);
+}
 
 export const setupSocketEvents = (io) => {
   io.on('connection', (socket) => {
@@ -12,38 +27,49 @@ export const setupSocketEvents = (io) => {
 
     // Feature 1 & 2: Click Start & Match with Stranger
     socket.on('START_SEARCH', async () => {
-      // Attempt to pull a waiting user from the right side of the Redis list
-      const partnerId = await redisClient.rPop('waiting_queue');
+      console.log(`START_SEARCH received from ${socket.id}`);
+      try {
+        // Attempt to pull a waiting user from the right side of the Redis list
+        const partnerId = await redisClient.rPop('waiting_queue');
+        console.log(`Popped partnerId: ${partnerId} for user ${socket.id}`);
 
-      if (partnerId && partnerId !== socket.id) {
-        // Partner found. Verify their socket is still actively connected.
-        const partnerSocket = io.sockets.sockets.get(partnerId);
-        
-        if (partnerSocket) {
-          // Create a secure, isolated Room ID
-          const roomId = `room_${partnerId}_${socket.id}`;
-          
-          socket.join(roomId);
-          partnerSocket.join(roomId);
+        if (partnerId && partnerId !== socket.id) {
+          // Partner found. Verify their socket is still actively connected.
+          const partnerSocket = io.sockets.sockets.get(partnerId);
+          console.log(`Partner socket found: ${!!partnerSocket} for partnerId: ${partnerId}`);
 
-          // Store room state directly on the socket instance for quick reference
-          socket.data.roomId = roomId;
-          partnerSocket.data.roomId = roomId;
+          if (partnerSocket) {
+            // Create a secure, isolated Room ID
+            const roomId = `room_${partnerId}_${socket.id}`;
 
-          // Broadcast to the room that a match occurred
-          io.to(roomId).emit('MATCH_FOUND', {
-            status: 'success',
-            message: 'You are now chatting with a stranger!',
-            roomId,
-          });
+            socket.join(roomId);
+            partnerSocket.join(roomId);
+
+            // Store room state directly on the socket instance for quick reference
+            socket.data.roomId = roomId;
+            partnerSocket.data.roomId = roomId;
+
+            console.log(`MATCH_FOUND: Created room ${roomId} for users ${socket.id} and ${partnerId}`);
+
+            // Broadcast to the room that a match occurred
+            io.to(roomId).emit('MATCH_FOUND', {
+              status: 'success',
+              message: 'You are now chatting with a stranger!',
+              roomId,
+            });
+          } else {
+            // Partner dropped out while in queue. Push the current user into the queue instead.
+            console.log(`Partner ${partnerId} not found, pushing ${socket.id} to queue`);
+            await redisClient.lPush('waiting_queue', socket.id);
+          }
         } else {
-          // Partner dropped out while in queue. Push the current user into the queue instead.
+          // Queue is empty. Push this user to the left side of the list.
+          console.log(`No partner found, pushing ${socket.id} to waiting queue`);
           await redisClient.lPush('waiting_queue', socket.id);
+          socket.emit('WAITING', { status: 'pending', message: 'Waiting for a match...' });
         }
-      } else {
-        // Queue is empty. Push this user to the left side of the list.
-        await redisClient.lPush('waiting_queue', socket.id);
-        socket.emit('WAITING', { status: 'pending', message: 'Waiting for a match...' });
+      } catch (error) {
+        console.error(`Error in START_SEARCH for ${socket.id}:`, error);
       }
     });
 

@@ -19,6 +19,25 @@ app.get('/', (req, res) => {
   res.send('🚀 VibeChat Server is Online!');
 });
 
+app.get('/health', async (req, res) => {
+  try {
+    // Test Redis connection
+    await redisService.ping();
+    res.json({
+      status: 'healthy',
+      redis: 'connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'unhealthy',
+      redis: 'disconnected',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 async function bootstrap() {
   try {
     console.log('1. Connecting to Redis...');
