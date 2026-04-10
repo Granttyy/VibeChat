@@ -115,19 +115,31 @@ const getSocket = ()=>{
         const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000';
         console.log('🔌 Initializing socket connection to:', socketUrl);
         socketInstance = (0, __TURBOPACK__imported__module__$5b$project$5d2f$OneDrive$2f$Documents$2f$VibeChat$2f$client$2f$node_modules$2f$socket$2e$io$2d$client$2f$build$2f$esm$2d$debug$2f$index$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$locals$3e$__["default"])(socketUrl, {
+            // Prioritize polling on Render (more reliable than WebSocket)
+            transports: [
+                'polling',
+                'websocket'
+            ],
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
-            reconnectionAttempts: 5,
-            transports: [
-                'websocket',
-                'polling'
-            ],
-            credentials: true
+            reconnectionAttempts: 10,
+            upgrade: true,
+            withCredentials: true,
+            forceNew: false,
+            rejectUnauthorized: false
         });
-        // Connection error handler
+        // Transport upgrade handler
+        socketInstance.on('upgrade', (transport)=>{
+            console.log('✅ Socket transport upgraded to:', transport.name);
+        });
+        // Transport error handler
         socketInstance.on('connect_error', (error)=>{
-            console.error('❌ Socket connection error:', error.message);
+            console.error('❌ Socket connection error:', error.message || error);
+        });
+        // Show current transport
+        socketInstance.on('connect', ()=>{
+            console.log('📡 Connected via transport:', socketInstance.io.engine.transport.name);
         });
     }
     return socketInstance;

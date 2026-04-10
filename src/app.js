@@ -9,26 +9,48 @@ const app = express();
 const httpServer = createServer(app);
 
 // Parse allowed origins from comma-separated list
-const allowedOrigins = (process.env.CORS_ORIGIN || '*')
+const allowedOrigins = (process.env.CORS_ORIGIN || 'https://vibechattt.vercel.app,http://localhost:3000,http://localhost:3001')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
 
+console.log('Allowed CORS Origins:', allowedOrigins);
+
+// Add CORS headers middleware for HTTP requests
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const isAllowed = allowedOrigins.includes('*') || !origin || allowedOrigins.includes(origin);
+  
+  if (isAllowed) {
+    // Always set the origin header to the requested origin
+    res.header('Access-Control-Allow-Origin', origin || allowedOrigins[0] || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Socket-ID');
+    res.header('Access-Control-Expose-Headers', 'Content-Length, X-JSON-Response');
+  }
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 const io = new Server(httpServer, {
-  transports: ['polling', 'websocket'],  // Polling first (more reliable on Render)
+  transports: ['websocket', 'polling'],  // WebSocket first, then polling fallback
   cors: {
     origin: (origin, callback) => {
-      // Allow all origins in development, or check the list in production
       if (allowedOrigins.includes('*') || !origin || allowedOrigins.includes(origin)) {
+        console.log(`✅ CORS allowed for origin: ${origin}`);
         callback(null, true);
       } else {
-        console.warn(`CORS rejected origin: ${origin}`);
+        console.error(`❌ CORS rejected origin: ${origin}`);
         callback(new Error('CORS not allowed'));
       }
     },
     methods: ["GET", "POST"],
     credentials: true,
-    maxHttpBufferSize: 1e6  // 1MB buffer for large messages
+    allowEIO3: true,  // Support Socket.IO v3 clients
   },
   // Polling configuration for Render compatibility
   pingInterval: 25000,  // Send ping every 25s
