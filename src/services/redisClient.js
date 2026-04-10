@@ -6,50 +6,67 @@ class RedisService {
       url: process.env.REDIS_URL || 'redis://localhost:6379',
     });
 
-    this.client.on('error', (err) => {
-      console.error('❌ Redis Connection Error:', err.message);
-    });
+    // 1. SAFE CONNECT GUARD — deduplicates concurrent connect() calls
+    this._connectPromise = null;
 
-    this.client.on('connect', () => {
-      console.log('✅ Connected to Redis');
-    });
-
-    this.client.on('reconnecting', () => {
-      console.warn('🔄 Redis reconnecting...');
-    });
-
-    this.client.on('end', () => {
-      console.warn('🔌 Redis connection closed');
-    });
+    this.client.on('error',       (err) => console.error('❌ Redis error:', err.message));
+    this.client.on('connect',     ()    => console.log('✅ Connected to Redis'));
+    this.client.on('reconnecting',()    => console.warn('🔄 Redis reconnecting...'));
+    this.client.on('end',         ()    => console.warn('🔌 Redis connection closed'));
   }
 
+  // 2. SAFE CONNECT — only one connect() runs at a time, all callers await the same promise
   async connect() {
-    if (!this.client.isOpen) {
-      await this.client.connect();
+    if (this.client.isOpen) return;
+
+    if (!this._connectPromise) {
+      this._connectPromise = this.client
+        .connect()
+        .finally(() => {
+          this._connectPromise = null; // reset so reconnect works after a failure
+        });
     }
+
+    return this._connectPromise;
   }
 
-  // Push user to the waiting list
+  // 3. HELPER — auto-connect before any operation
+  async #cmd(fn) {
+    await this.connect();
+    return fn();
+  }
+
+  // 4. UPGRADED QUEUE — LIST → SET
+  //    sAdd is idempotent (no duplicates) and O(1)
   async joinQueue(userId) {
-    return await this.client.lPush('waiting_queue', userId);
+    return this.#cmd(() => this.client.sAdd('waiting_queue', userId));
   }
 
-  // Pull a random partner
-  async popPartner() {
-    return await this.client.rPop('waiting_queue');
-  }
-
-  // Remove user if they cancel/disconnect while waiting
+  // sRem is O(1) — no full-list scan like lRem
   async removeFromQueue(userId) {
-    return await this.client.lRem('waiting_queue', 0, userId);
+    return this.#cmd(() => this.client.sRem('waiting_queue', userId));
   }
 
-  // Ping Redis to check connection
+  // sPop picks a random member and removes it atomically
+  // Pass the requesting userId to guard against self-matching
+  async popPartner(excludeId = null) {
+    return this.#cmd(async () => {
+      const partner = await this.client.sPop('waiting_queue');
+
+      // Self-match: put them back and return null
+      if (partner && partner === excludeId) {
+        await this.client.sAdd('waiting_queue', partner);
+        return null;
+      }
+
+      return partner ?? null;
+    });
+  }
+
   async ping() {
-    return await this.client.ping();
+    return this.#cmd(() => this.client.ping());
   }
 
-  // Graceful shutdown
   async disconnect() {
     if (this.client.isOpen) {
       await this.client.quit();

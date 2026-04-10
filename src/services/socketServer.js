@@ -1,117 +1,135 @@
 import { createClient } from 'redis';
 
-// Initialize the Redis Client
 const redisClient = createClient({
   url: process.env.REDIS_URL || 'redis://localhost:6379',
-  socket: {
-    connectTimeout: 60000,
-    lazyConnect: true,
-  }
+  socket: { connectTimeout: 60000, lazyConnect: true },
 });
 
-redisClient.on('error', (err) => console.error('Redis connection error:', err));
-redisClient.on('connect', () => console.log('Redis connected successfully'));
-redisClient.on('ready', () => console.log('Redis client ready'));
+redisClient.on('error',   (err) => console.error('Redis error:', err));
+redisClient.on('connect', ()    => console.log('Redis connected'));
+redisClient.on('ready',   ()    => console.log('Redis ready'));
 
-// Connect to Redis
 try {
   await redisClient.connect();
-  console.log('Redis client initialized');
-} catch (error) {
-  console.error('Failed to connect to Redis:', error);
+} catch (err) {
+  console.error('Failed to connect to Redis:', err);
+  process.exit(1); // don't run with a dead Redis connection
 }
 
 export const setupSocketEvents = (io) => {
   io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
 
-    // Feature 1 & 2: Click Start & Match with Stranger
+    // BUG 3 FIX: track in-flight search per socket so double-clicks are ignored
+    socket.data.searching = false;
+
     socket.on('START_SEARCH', async () => {
-      console.log(`START_SEARCH received from ${socket.id}`);
+
+      // BUG 1 FIX: debounce guard — drop concurrent/duplicate START_SEARCH events
+      if (socket.data.searching || socket.data.roomId) return;
+      socket.data.searching = true;
+
+      console.log(`START_SEARCH from ${socket.id}`);
+
       try {
-        // Attempt to pull a waiting user from the right side of the Redis list
-        const partnerId = await redisClient.rPop('waiting_queue');
-        console.log(`Popped partnerId: ${partnerId} for user ${socket.id}`);
+        // Use the upgraded SET-based queue from RedisService, 
+        // or inline with the raw client as below:
+        const partnerId = await redisClient.sPop('waiting_queue');
 
-        if (partnerId && partnerId !== socket.id) {
-          // Partner found. Verify their socket is still actively connected.
+        // Self-match guard (relevant if the SET had a stale entry for this socket)
+        if (partnerId === socket.id) {
+          await redisClient.sAdd('waiting_queue', partnerId);
+          await redisClient.sAdd('waiting_queue', socket.id);
+          socket.emit('WAITING', { status: 'pending', message: 'Waiting for a match...' });
+          return;
+        }
+
+        if (partnerId) {
+          // BUG 2 FIX: verify the partner socket is still alive BEFORE committing
           const partnerSocket = io.sockets.sockets.get(partnerId);
-          console.log(`Partner socket found: ${!!partnerSocket} for partnerId: ${partnerId}`);
 
-          if (partnerSocket) {
-            // Create a secure, isolated Room ID
-            const roomId = `room_${partnerId}_${socket.id}`;
+          if (!partnerSocket) {
+            // Ghost partner — log it, drop them, push ourselves, tell client to wait
+            console.warn(`Ghost partner ${partnerId} removed from queue`);
+            // Don't re-add the ghost. Push current user instead.
+            await redisClient.sAdd('waiting_queue', socket.id);
 
-            socket.join(roomId);
-            partnerSocket.join(roomId);
-
-            // Store room state directly on the socket instance for quick reference
-            socket.data.roomId = roomId;
-            partnerSocket.data.roomId = roomId;
-
-            console.log(`MATCH_FOUND: Created room ${roomId} for users ${socket.id} and ${partnerId}`);
-
-            // Broadcast to the room that a match occurred
-            io.to(roomId).emit('MATCH_FOUND', {
-              status: 'success',
-              message: 'You are now chatting with a stranger!',
-              roomId,
-            });
-          } else {
-            // Partner dropped out while in queue. Push the current user into the queue instead.
-            console.log(`Partner ${partnerId} not found, pushing ${socket.id} to queue`);
-            await redisClient.lPush('waiting_queue', socket.id);
+            // BUG 3 FIX: always emit WAITING so the client isn't left in limbo
+            socket.emit('WAITING', { status: 'pending', message: 'Waiting for a match...' });
+            return;
           }
+
+          // Partner is alive — create the room
+          const roomId = `room_${partnerId}_${socket.id}`;
+
+          socket.join(roomId);
+          partnerSocket.join(roomId);
+
+          socket.data.roomId       = roomId;
+          partnerSocket.data.roomId = roomId;
+
+          // Clear the searching flag for both sockets
+          socket.data.searching       = false;
+          partnerSocket.data.searching = false;
+
+          console.log(`MATCH_FOUND: ${roomId}`);
+
+          io.to(roomId).emit('MATCH_FOUND', {
+            status:  'success',
+            message: 'You are now chatting with a stranger!',
+            roomId,
+          });
+
         } else {
-          // Queue is empty. Push this user to the left side of the list.
-          console.log(`No partner found, pushing ${socket.id} to waiting queue`);
-          await redisClient.lPush('waiting_queue', socket.id);
+          // Queue was empty — add ourselves and wait
+          await redisClient.sAdd('waiting_queue', socket.id);
           socket.emit('WAITING', { status: 'pending', message: 'Waiting for a match...' });
         }
-      } catch (error) {
-        console.error(`Error in START_SEARCH for ${socket.id}:`, error);
+
+      } catch (err) {
+        console.error(`START_SEARCH error for ${socket.id}:`, err);
+        socket.emit('ERROR', { message: 'Search failed. Please try again.' });
+      } finally {
+        // Always release the lock so the user can retry after an error
+        socket.data.searching = false;
       }
     });
 
-    // Feature 3: Chat in Real-Time
-    socket.on('SEND_MESSAGE', (messageData) => {
-      const roomId = socket.data.roomId;
-      if (roomId) {
-        socket.to(roomId).emit('RECEIVE_MESSAGE', {
-          message: messageData.message,
-          sender: messageData.sender || socket.id,
-          timestamp: new Date().toLocaleTimeString(),
-        });
-      }
+    socket.on('SEND_MESSAGE', ({ message, sender }) => {
+      const { roomId } = socket.data;
+      if (!roomId) return;
+
+      socket.to(roomId).emit('RECEIVE_MESSAGE', {
+        message,
+        sender: sender || socket.id,
+        timestamp: new Date().toLocaleTimeString(),
+      });
     });
 
-    // Feature 4: Disconnect / Find New Partner
     socket.on('LEAVE_CHAT', async () => {
-      const roomId = socket.data.roomId;
-      
+      const { roomId } = socket.data;
+
       if (roomId) {
-        // Inform the partner that the chat has ended
         socket.to(roomId).emit('PARTNER_LEFT', { message: 'Stranger disconnected.' });
-        
-        // Remove current user from the room
         socket.leave(roomId);
         socket.data.roomId = null;
       } else {
-        // If the user cancels while actively waiting in the queue, remove their ID
-        await redisClient.lRem('waiting_queue', 0, socket.id);
+        // Cancel while waiting — remove from SET (O(1), no scan)
+        await redisClient.sRem('waiting_queue', socket.id);
       }
+
+      socket.data.searching = false;
     });
 
-    // Global Cleanup: Handle abrupt browser closures
     socket.on('disconnect', async () => {
-      const roomId = socket.data.roomId;
-      
+      const { roomId } = socket.data;
+
       if (roomId) {
         socket.to(roomId).emit('PARTNER_LEFT', { message: 'Stranger disconnected.' });
       } else {
-        await redisClient.lRem('waiting_queue', 0, socket.id);
+        await redisClient.sRem('waiting_queue', socket.id);
       }
-      
+
       console.log(`User disconnected: ${socket.id}`);
     });
   });

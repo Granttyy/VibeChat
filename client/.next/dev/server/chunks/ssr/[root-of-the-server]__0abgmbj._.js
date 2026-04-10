@@ -129,18 +129,32 @@ const useSocket = ()=>{
     const socketRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$OneDrive$2f$Documents$2f$VibeChat$2f$client$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useRef"])(null);
     // Initialize socket connection on mount
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$OneDrive$2f$Documents$2f$VibeChat$2f$client$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        console.log('Client: Initializing socket connection...');
         socketRef.current = getSocket();
         socketRef.current.on('connect', ()=>{
+            console.log('Client: Socket connected with ID:', socketRef.current.id);
             setUserId(socketRef.current.id);
         });
+        socketRef.current.on('disconnect', ()=>{
+            console.log('Client: Socket disconnected');
+            setState('IDLE');
+            setMessages([]);
+            setRoomId(null);
+        });
         // Handle MATCH_FOUND event
-        socketRef.current.on(SOCKET_EVENTS.MATCH_FOUND, (data)=>{
+        socketRef.current.on('MATCH_FOUND', (data)=>{
+            console.log('Client: MATCH_FOUND received:', data);
             setRoomId(data.roomId);
             setMessages([]);
             setState('CHATTING');
         });
+        // Handle WAITING event
+        socketRef.current.on('WAITING', (data)=>{
+            console.log('Client: WAITING received:', data);
+        });
         // Handle RECEIVE_MESSAGE event
         socketRef.current.on(SOCKET_EVENTS.RECEIVE_MESSAGE, (data)=>{
+            console.log('Client: RECEIVE_MESSAGE received:', data);
             setMessages((prev)=>[
                     ...prev,
                     {
@@ -153,6 +167,7 @@ const useSocket = ()=>{
         });
         // Handle partner disconnect
         socketRef.current.on(SOCKET_EVENTS.PARTNER_LEFT, ()=>{
+            console.log('Client: PARTNER_LEFT received');
             setState('IDLE');
             setMessages([]);
             setRoomId(null);
@@ -168,9 +183,13 @@ const useSocket = ()=>{
         };
     }, []);
     const startSearch = (0, __TURBOPACK__imported__module__$5b$project$5d2f$OneDrive$2f$Documents$2f$VibeChat$2f$client$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(()=>{
+        console.log('Client: startSearch called');
         if (socketRef.current) {
+            console.log('Client: Socket exists, emitting START_SEARCH');
             setState('SEARCHING');
             socketRef.current.emit(SOCKET_EVENTS.START_SEARCH);
+        } else {
+            console.log('Client: No socket connection available');
         }
     }, []);
     const sendMessage = (0, __TURBOPACK__imported__module__$5b$project$5d2f$OneDrive$2f$Documents$2f$VibeChat$2f$client$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((message)=>{

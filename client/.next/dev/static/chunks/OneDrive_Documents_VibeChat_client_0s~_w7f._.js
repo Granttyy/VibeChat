@@ -43,23 +43,41 @@ const useSocket = ()=>{
     // Initialize socket connection on mount
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$OneDrive$2f$Documents$2f$VibeChat$2f$client$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
         "useSocket.useEffect": ()=>{
+            console.log('Client: Initializing socket connection...');
             socketRef.current = getSocket();
             socketRef.current.on('connect', {
                 "useSocket.useEffect": ()=>{
+                    console.log('Client: Socket connected with ID:', socketRef.current.id);
                     setUserId(socketRef.current.id);
                 }
             }["useSocket.useEffect"]);
+            socketRef.current.on('disconnect', {
+                "useSocket.useEffect": ()=>{
+                    console.log('Client: Socket disconnected');
+                    setState('IDLE');
+                    setMessages([]);
+                    setRoomId(null);
+                }
+            }["useSocket.useEffect"]);
             // Handle MATCH_FOUND event
-            socketRef.current.on(SOCKET_EVENTS.MATCH_FOUND, {
+            socketRef.current.on('MATCH_FOUND', {
                 "useSocket.useEffect": (data)=>{
+                    console.log('Client: MATCH_FOUND received:', data);
                     setRoomId(data.roomId);
                     setMessages([]);
                     setState('CHATTING');
                 }
             }["useSocket.useEffect"]);
+            // Handle WAITING event
+            socketRef.current.on('WAITING', {
+                "useSocket.useEffect": (data)=>{
+                    console.log('Client: WAITING received:', data);
+                }
+            }["useSocket.useEffect"]);
             // Handle RECEIVE_MESSAGE event
             socketRef.current.on(SOCKET_EVENTS.RECEIVE_MESSAGE, {
                 "useSocket.useEffect": (data)=>{
+                    console.log('Client: RECEIVE_MESSAGE received:', data);
                     setMessages({
                         "useSocket.useEffect": (prev)=>[
                                 ...prev,
@@ -76,6 +94,7 @@ const useSocket = ()=>{
             // Handle partner disconnect
             socketRef.current.on(SOCKET_EVENTS.PARTNER_LEFT, {
                 "useSocket.useEffect": ()=>{
+                    console.log('Client: PARTNER_LEFT received');
                     setState('IDLE');
                     setMessages([]);
                     setRoomId(null);
@@ -98,9 +117,13 @@ const useSocket = ()=>{
     }["useSocket.useEffect"], []);
     const startSearch = (0, __TURBOPACK__imported__module__$5b$project$5d2f$OneDrive$2f$Documents$2f$VibeChat$2f$client$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
         "useSocket.useCallback[startSearch]": ()=>{
+            console.log('Client: startSearch called');
             if (socketRef.current) {
+                console.log('Client: Socket exists, emitting START_SEARCH');
                 setState('SEARCHING');
                 socketRef.current.emit(SOCKET_EVENTS.START_SEARCH);
+            } else {
+                console.log('Client: No socket connection available');
             }
         }
     }["useSocket.useCallback[startSearch]"], []);
