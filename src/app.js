@@ -8,10 +8,25 @@ import { config } from './config.js';
 const app = express();
 const httpServer = createServer(app);
 
+// Parse allowed origins from comma-separated list
+const allowedOrigins = (process.env.CORS_ORIGIN || '*')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CORS_ORIGIN,
-    methods: ["GET", "POST"]
+    origin: (origin, callback) => {
+      // Allow all origins in development, or check the list in production
+      if (allowedOrigins.includes('*') || !origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`CORS rejected origin: ${origin}`);
+        callback(new Error('CORS not allowed'));
+      }
+    },
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 // Global error handling

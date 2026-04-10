@@ -15,11 +15,21 @@ let socketInstance = null;
 
 const getSocket = () => {
   if (!socketInstance) {
-    socketInstance = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000', {
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000';
+    console.log('🔌 Initializing socket connection to:', socketUrl);
+    
+    socketInstance = io(socketUrl, {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 5,
+      transports: ['websocket', 'polling'],
+      credentials: true
+    });
+    
+    // Connection error handler
+    socketInstance.on('connect_error', (error) => {
+      console.error('❌ Socket connection error:', error.message);
     });
   }
   return socketInstance;

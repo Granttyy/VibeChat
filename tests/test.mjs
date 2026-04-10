@@ -1,7 +1,7 @@
 // test.mjs
 import { io } from "socket.io-client";
 
-const SERVER_URL = "http://localhost:3000";
+const SERVER_URL = "https://vibechat-xrfi.onrender.com";
 
 console.log("🤖 Starting VibeChat Automated Test...");
 
@@ -24,12 +24,12 @@ user1.on("MATCH_FOUND", (data) => {
     // Simulate typing a message for 1 second, then sending it
     setTimeout(() => {
         console.log("✉️ User 1 sending a message...");
-        user1.emit("SEND_MESSAGE", { text: "Hello from User 1! How is your vibe?" });
+        user1.emit("SEND_MESSAGE", { message: "Hello from User 1! How is your vibe?" });
     }, 1000);
 });
 
 user1.on("RECEIVE_MESSAGE", (data) => {
-    console.log(`📥 User 1 received a message: "${data.text}"`);
+    console.log(`📥 User 1 received a message: "${data.message}"`);
 });
 
 
@@ -49,11 +49,11 @@ user2.on("MATCH_FOUND", (data) => {
 });
 
 user2.on("RECEIVE_MESSAGE", (data) => {
-    console.log(`📥 User 2 received a message: "${data.text}"`);
+    console.log(`📥 User 2 received a message: "${data.message}"`);
     
     // User 2 replies immediately
     console.log("✉️ User 2 sending a reply...");
-    user2.emit("SEND_MESSAGE", { text: "My vibe is immaculate. Thanks for asking!" });
+    user2.emit("SEND_MESSAGE", { message: "My vibe is immaculate. Thanks for asking!" });
     
     // End the test after a short delay
     setTimeout(() => {
