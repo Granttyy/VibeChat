@@ -15,20 +15,21 @@ let socketInstance = null;
 
 const getSocket = () => {
   if (!socketInstance) {
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000';
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
     console.log('🔌 Initializing socket connection to:', socketUrl);
     
     socketInstance = io(socketUrl, {
-      // Prioritize polling on Render (more reliable than WebSocket)
-      transports: ['polling', 'websocket'],
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+      autoConnect: true,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 10,
       upgrade: true,
       withCredentials: true,
+      secure: socketUrl.startsWith('https'),
       forceNew: false,
-      rejectUnauthorized: false,
     });
     
     // Transport upgrade handler
@@ -38,7 +39,15 @@ const getSocket = () => {
     
     // Transport error handler
     socketInstance.on('connect_error', (error) => {
-      console.error('❌ Socket connection error:', error.message || error);
+      console.error('❌ Socket connection error:', error?.message || error);
+    });
+
+    socketInstance.on('reconnect_error', (error) => {
+      console.error('❌ Socket reconnect error:', error?.message || error);
+    });
+
+    socketInstance.on('reconnect_failed', () => {
+      console.error('❌ Socket reconnection failed after max attempts');
     });
     
     // Show current transport
@@ -116,7 +125,16 @@ export const useSocket = () => {
     });
 
     return () => {
-      // Don't disconnect on unmount - keep singleton alive
+      const socket = socketRef.current;
+      if (!socket) return;
+
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('MATCH_FOUND');
+      socket.off('WAITING');
+      socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE);
+      socket.off(SOCKET_EVENTS.PARTNER_LEFT);
+      socket.off(SOCKET_EVENTS.DISCONNECT);
     };
   }, []);
 

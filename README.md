@@ -57,7 +57,7 @@ CORS_ORIGIN=*
 For the frontend, create `.env.local` in the `client` directory:
 
 ```env
-NEXT_PUBLIC_SOCKET_URL=http://localhost:3000
+NEXT_PUBLIC_SOCKET_URL=http://localhost:3001
 ```
 
 ## Running Locally

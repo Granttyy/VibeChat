@@ -24,22 +24,23 @@ const SOCKET_EVENTS = {
 let socketInstance = null;
 const getSocket = ()=>{
     if (!socketInstance) {
-        const socketUrl = __TURBOPACK__imported__module__$5b$project$5d2f$OneDrive$2f$Documents$2f$VibeChat$2f$client$2f$node_modules$2f$next$2f$dist$2f$build$2f$polyfills$2f$process$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000';
+        const socketUrl = __TURBOPACK__imported__module__$5b$project$5d2f$OneDrive$2f$Documents$2f$VibeChat$2f$client$2f$node_modules$2f$next$2f$dist$2f$build$2f$polyfills$2f$process$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
         console.log('🔌 Initializing socket connection to:', socketUrl);
         socketInstance = (0, __TURBOPACK__imported__module__$5b$project$5d2f$OneDrive$2f$Documents$2f$VibeChat$2f$client$2f$node_modules$2f$socket$2e$io$2d$client$2f$build$2f$esm$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$locals$3e$__["default"])(socketUrl, {
-            // Prioritize polling on Render (more reliable than WebSocket)
+            path: '/socket.io',
             transports: [
-                'polling',
-                'websocket'
+                'websocket',
+                'polling'
             ],
+            autoConnect: true,
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
             reconnectionAttempts: 10,
             upgrade: true,
             withCredentials: true,
-            forceNew: false,
-            rejectUnauthorized: false
+            secure: socketUrl.startsWith('https'),
+            forceNew: false
         });
         // Transport upgrade handler
         socketInstance.on('upgrade', (transport)=>{
@@ -47,7 +48,13 @@ const getSocket = ()=>{
         });
         // Transport error handler
         socketInstance.on('connect_error', (error)=>{
-            console.error('❌ Socket connection error:', error.message || error);
+            console.error('❌ Socket connection error:', error?.message || error);
+        });
+        socketInstance.on('reconnect_error', (error)=>{
+            console.error('❌ Socket reconnect error:', error?.message || error);
+        });
+        socketInstance.on('reconnect_failed', ()=>{
+            console.error('❌ Socket reconnection failed after max attempts');
         });
         // Show current transport
         socketInstance.on('connect', ()=>{
@@ -133,7 +140,15 @@ const useSocket = ()=>{
             }["useSocket.useEffect"]);
             return ({
                 "useSocket.useEffect": ()=>{
-                // Don't disconnect on unmount - keep singleton alive
+                    const socket = socketRef.current;
+                    if (!socket) return;
+                    socket.off('connect');
+                    socket.off('disconnect');
+                    socket.off('MATCH_FOUND');
+                    socket.off('WAITING');
+                    socket.off(SOCKET_EVENTS.RECEIVE_MESSAGE);
+                    socket.off(SOCKET_EVENTS.PARTNER_LEFT);
+                    socket.off(SOCKET_EVENTS.DISCONNECT);
                 }
             })["useSocket.useEffect"];
         }
