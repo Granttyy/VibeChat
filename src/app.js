@@ -15,6 +15,7 @@ const allowedOrigins = (process.env.CORS_ORIGIN || '*')
   .filter(Boolean);
 
 const io = new Server(httpServer, {
+  transports: ['polling', 'websocket'],  // Polling first (more reliable on Render)
   cors: {
     origin: (origin, callback) => {
       // Allow all origins in development, or check the list in production
@@ -26,8 +27,14 @@ const io = new Server(httpServer, {
       }
     },
     methods: ["GET", "POST"],
-    credentials: true
-  }
+    credentials: true,
+    maxHttpBufferSize: 1e6  // 1MB buffer for large messages
+  },
+  // Polling configuration for Render compatibility
+  pingInterval: 25000,  // Send ping every 25s
+  pingTimeout: 60000,   // Wait 60s for pong before considering disconnected
+  upgradeTimeout: 10000, // Timeout for WebSocket upgrade attempt
+  maxHttpBufferSize: 1e6,
 });
 // Global error handling
 process.on('uncaughtException', (error) => {

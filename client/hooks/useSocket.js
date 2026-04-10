@@ -19,17 +19,31 @@ const getSocket = () => {
     console.log('🔌 Initializing socket connection to:', socketUrl);
     
     socketInstance = io(socketUrl, {
+      // Prioritize polling on Render (more reliable than WebSocket)
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-      transports: ['websocket', 'polling'],
-      credentials: true
+      reconnectionAttempts: 10,
+      upgrade: true,
+      withCredentials: true,
+      forceNew: false,
+      rejectUnauthorized: false,
     });
     
-    // Connection error handler
+    // Transport upgrade handler
+    socketInstance.on('upgrade', (transport) => {
+      console.log('✅ Socket transport upgraded to:', transport.name);
+    });
+    
+    // Transport error handler
     socketInstance.on('connect_error', (error) => {
-      console.error('❌ Socket connection error:', error.message);
+      console.error('❌ Socket connection error:', error.message || error);
+    });
+    
+    // Show current transport
+    socketInstance.on('connect', () => {
+      console.log('📡 Connected via transport:', socketInstance.io.engine.transport.name);
     });
   }
   return socketInstance;
